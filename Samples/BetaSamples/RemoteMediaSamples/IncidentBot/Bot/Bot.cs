@@ -198,16 +198,21 @@ namespace Sample.IncidentBot.Bot
 
             var botMeetingCall = await this.JoinCallAsync(incidentRequestData, incidentId).ConfigureAwait(false);
 
-            foreach (var objectId in incidentRequestData.ObjectIds)
-            {
-                var makeCallRequestData =
+            var makeCallRequestData1 =
+                     new MakeCallRequestData(
+                         incidentRequestData.TenantId,
+                         incidentRequestData.ObjectId1,
+                         "Application".Equals(incidentRequestData.ResponderType, StringComparison.OrdinalIgnoreCase));
+            var responderCall1 = await this.MakeCallAsync(makeCallRequestData1, scenarioId).ConfigureAwait(false);
+            this.AddCallToHandlers(responderCall1, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
+
+            var makeCallRequestData2 =
                     new MakeCallRequestData(
                         incidentRequestData.TenantId,
-                        objectId,
+                        incidentRequestData.ObjectId2,
                         "Application".Equals(incidentRequestData.ResponderType, StringComparison.OrdinalIgnoreCase));
-                var responderCall = await this.MakeCallAsync(makeCallRequestData, scenarioId).ConfigureAwait(false);
-                this.AddCallToHandlers(responderCall, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
-            }
+            var responderCall2 = await this.MakeCallAsync(makeCallRequestData2, scenarioId).ConfigureAwait(false);
+            this.AddCallToHandlers(responderCall2, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
 
             return botMeetingCall;
         }

@@ -45,7 +45,7 @@ namespace Sample.IncidentBot.IncidentStatus
         /// <param name="id">The incident id.</param>
         /// <param name="data">The incident data.</param>
         public IncidentStatusData(string id, IncidentRequestData data)
-            : this(id, data.Name, data.Time, data.ObjectIds)
+            : this(id, data.Name, data.ObjectId1, data.ObjectId2)
         {
         }
 
@@ -54,22 +54,25 @@ namespace Sample.IncidentBot.IncidentStatus
         /// </summary>
         /// <param name="id">The incident id.</param>
         /// <param name="name">The incident name.</param>
-        /// <param name="time">The time of incident.</param>
-        /// <param name="objectIds">The responders' object IDs.</param>
-        private IncidentStatusData(string id, string name, DateTime time, IEnumerable<string> objectIds)
+        /// <param name="objectId1">The object id1.</param>
+        /// <param name="objectId2">The object id2.</param>
+        private IncidentStatusData(string id, string name, string objectId1, string objectId2)
         {
             this.DataCreationTime = DateTime.UtcNow;
 
             this.Id = id;
             this.Name = name;
-            this.Time = time;
+            this.Time = this.DataCreationTime;
 
             this.responderStatusDictionary = new Dictionary<string, IncidentResponderStatusData>();
 
+            /*RAJL
             foreach (var responderId in objectIds)
             {
                 this.responderStatusDictionary.Add(responderId, new IncidentResponderStatusData(responderId));
-            }
+            }*/
+            this.responderStatusDictionary.Add(objectId1, new IncidentResponderStatusData(objectId1));
+            this.responderStatusDictionary.Add(objectId2, new IncidentResponderStatusData(objectId2));
         }
 
         /// <summary>

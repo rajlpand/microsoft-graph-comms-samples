@@ -21,12 +21,12 @@ namespace Sample.IncidentBot.Data
         /// <summary>
         /// Gets or sets the incident time.
         /// </summary>
-        public DateTime Time { get; set; }
+        public string ObjectId1 { get; set; }
 
         /// <summary>
         /// Gets or sets the user object ids.
         /// </summary>
-        public IEnumerable<string> ObjectIds { get; set; }
+        public string ObjectId2 { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the responders are applications or users.
