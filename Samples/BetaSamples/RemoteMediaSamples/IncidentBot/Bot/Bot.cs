@@ -206,6 +206,7 @@ namespace Sample.IncidentBot.Bot
             var responderCall1 = await this.MakeCallAsync(makeCallRequestData1, scenarioId).ConfigureAwait(false);
             this.AddCallToHandlers(responderCall1, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
 
+            /* RAJL Skip second caller for now
             var makeCallRequestData2 =
                     new MakeCallRequestData(
                         incidentRequestData.TenantId,
@@ -213,7 +214,7 @@ namespace Sample.IncidentBot.Bot
                         "Application".Equals(incidentRequestData.ResponderType, StringComparison.OrdinalIgnoreCase));
             var responderCall2 = await this.MakeCallAsync(makeCallRequestData2, scenarioId).ConfigureAwait(false);
             this.AddCallToHandlers(responderCall2, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
-
+            */
             return botMeetingCall;
         }
 
