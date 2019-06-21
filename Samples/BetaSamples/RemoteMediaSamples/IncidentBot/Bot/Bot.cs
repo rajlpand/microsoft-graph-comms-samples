@@ -63,6 +63,9 @@ namespace Sample.IncidentBot.Bot
 
         private readonly LinkedList<string> callbackLogs = new LinkedList<string>();
 
+        private ICall botinMeetingCall;
+        private ICall botoutMeetingCall;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Bot" /> class.
         /// </summary>
@@ -187,16 +190,17 @@ namespace Sample.IncidentBot.Bot
         /// <returns>The task for await.</returns>
         public async Task<ICall> RaiseIncidentAsync(IncidentRequestData incidentRequestData)
         {
-            // A tracking id for logging purposes. Helps identify this call in logs.
-            var scenarioId = string.IsNullOrEmpty(incidentRequestData.ScenarioId) ? Guid.NewGuid() : new Guid(incidentRequestData.ScenarioId);
-
             string incidentId = Guid.NewGuid().ToString();
 
             var incidentStatusData = new IncidentStatusData(incidentId, incidentRequestData);
 
             var incident = this.IncidentStatusManager.AddIncident(incidentId, incidentStatusData);
 
-            var botMeetingCall = await this.JoinCallAsync(incidentRequestData, incidentId).ConfigureAwait(false);
+            // A tracking id for logging purposes. Helps identify this call in logs.
+            var scenarioId = string.IsNullOrEmpty(incidentRequestData.ScenarioId) ? Guid.NewGuid() : new Guid(incidentRequestData.ScenarioId);
+
+            this.botoutMeetingCall = await this.JoinCallAsync(incidentRequestData, incidentId).ConfigureAwait(false);
+            this.graphLogger.Info($"RaiseIncidentAsync: Created meeting {this.botoutMeetingCall.Id}");
 
             var makeCallRequestData1 =
                      new MakeCallRequestData(
@@ -215,7 +219,7 @@ namespace Sample.IncidentBot.Bot
             var responderCall2 = await this.MakeCallAsync(makeCallRequestData2, scenarioId).ConfigureAwait(false);
             this.AddCallToHandlers(responderCall2, new IncidentCallContext(IncidentCallType.ResponderNotification, incidentId));
             */
-            return botMeetingCall;
+            return this.botoutMeetingCall;
         }
 
         /// <summary>
@@ -268,6 +272,44 @@ namespace Sample.IncidentBot.Bot
             this.AddCallToHandlers(statefulCall, new IncidentCallContext(IncidentCallType.BotMeeting, incidentId));
 
             this.graphLogger.Info($"Join Call complete: {statefulCall.Id}");
+
+            return statefulCall;
+        }
+
+        /// <summary>
+        /// Joins the call asynchronously.
+        /// </summary>
+        /// <param name="tenantID">Tenant ID.</param>
+        /// <param name="scenarioID">The call scenario ID.</param>
+        /// <param name="meetingURL">Teams meeting URL.</param>
+        /// <param name="allowConversationWithoutHost">Allow conversation without host.</param>
+        /// <param name = "removeFromDefaultRoutingGroup" >Remove from default Routing Group.</param>
+        /// <returns>The <see cref="ICall"/> that was requested to join.</returns>
+        public async Task<ICall> JoinCallInboundAsync(string tenantID, string scenarioID, string meetingURL, bool allowConversationWithoutHost, bool removeFromDefaultRoutingGroup)
+        {
+            // A tracking id for logging purposes. Helps identify this call in logs.
+            var scenarioId = string.IsNullOrEmpty(scenarioID) ? Guid.NewGuid() : new Guid(scenarioID);
+
+            Microsoft.Graph.MeetingInfo meetingInfo;
+            ChatInfo chatInfo;
+            (chatInfo, meetingInfo) = JoinInfo.ParseJoinURL(meetingURL);
+            meetingInfo.AllowConversationWithoutHost = allowConversationWithoutHost;
+
+            var mediaToPrefetch = new List<MediaInfo>();
+            foreach (var m in this.MediaMap)
+            {
+                mediaToPrefetch.Add(m.Value.MediaInfo);
+            }
+
+            var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, new[] { Modality.Audio }, mediaToPrefetch)
+            {
+                RemoveFromDefaultAudioRoutingGroup = removeFromDefaultRoutingGroup,
+                TenantId = tenantID,
+            };
+
+            var statefulCall = await this.Client.Calls().AddAsync(joinParams, scenarioId).ConfigureAwait(false);
+
+            this.graphLogger.Info($"JoinCallInboundAsync: Join Call complete: {statefulCall.Id}");
 
             return statefulCall;
         }
@@ -507,12 +549,26 @@ namespace Sample.IncidentBot.Bot
                     break;
                 case IncidentCallType.BotIncoming:
                     // call from an user.
-                    callHandler = new IncomingCallHandler(this, call, null /* The app endpoint ID */);
+                    this.graphLogger.Info("AddCallToHandlers: BotIncoming call " + call.Resource.Source.Identity.User.Id);
+
+                    var tenantID = "97009a52-97e9-4290-8f2c-a8ac8925d978";
+                    var userObjectID = call.Resource.Source.Identity.User.Id;
+                    var meetingURL = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_Yjk0MGIxYzMtNjhkOC00YWRmLThiMTEtZTZjNmZmYjI1M2Jl%40thread.v2/0?context=%7b%22Tid%22%3a%2297009a52-97e9-4290-8f2c-a8ac8925d978%22%2c%22Oid%22%3a%22e295a5a3-54a9-41b6-bcd6-67d9f06c2121%22%7d";
+
+                    Task.Run(async () =>
+                    {
+                        this.botinMeetingCall = await this.JoinCallInboundAsync(tenantID, string.Empty, meetingURL, true, true).ConfigureAwait(false);
+                    });
+                    this.graphLogger.Info($"AddCallToHandlers: BotIncoming created meeting {this.botinMeetingCall.Id}");
+
+                    callHandler = new IncomingCallHandler(this, call, null /* The app endpoint ID */, call.Resource.Source.Identity.User.Id, this.botinMeetingCall);
                     break;
                 case IncidentCallType.BotEndpointIncoming:
-                    // call from an user to an bot endpoint.
-                    callee = call.Resource.Targets.First();
-                    callHandler = new IncomingCallHandler(this, call, callee.Identity.GetApplicationInstance().Id);
+                    // call from an user to an bot endpoint
+                    this.graphLogger.Info("AddCallToHandlers: BotEndpointIncoming call " + callee.Identity.User.Id);
+
+                    // callHandler = new IncomingCallHandler(this, call, callee.Identity.GetApplicationInstance().Id, callee.Identity.User.Id, this.curRespCallID, this.curMeetCallID);
+                    this.graphLogger.Error("Implement this case here.");
                     break;
                 default:
                     throw new NotSupportedException($"Invalid call type in incident call context: {incidentCallContext.CallType}");
